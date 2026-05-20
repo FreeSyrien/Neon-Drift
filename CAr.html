@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Drift - Retro Drift Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: #0b0c10;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        /* Custom neon shadows */
+        .neon-shadow-pink {
+            filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.6));
+        }
+        .neon-shadow-cyan {
+            filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.6));
+        }
+        .neon-border-pink {
+            box-shadow: 0 0 10px rgba(236, 72, 153, 0.3), inset 0 0 10px rgba(236, 72, 153, 0.2);
+            border: 1px solid rgba(236, 72, 153, 0.6);
+        }
+        .neon-border-cyan {
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3), inset 0 0 10px rgba(6, 182, 212, 0.2);
+            border: 1px solid rgba(6, 182, 212, 0.6);
+        }
+        /* Touch controls styling */
+        .touch-btn {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            active-bg: rgba(6, 182, 212, 0.4);
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative flex items-center justify-center text-white">
+
+    <!-- Game UI & Overlay Canvas Wrapper -->
+    <div class="relative w-full h-full flex flex-col items-center justify-center">
+        <!-- Persistent Canvas Layers -->
+        <!-- Track Base & Logic Checking Canvas -->
+        <canvas id="bgCanvas" class="absolute inset-0 w-full h-full pointer-events-none hidden"></canvas>
+        <!-- Main Rendering Canvas (Roads, Cars, UI elements) -->
+        <canvas id="gameCanvas" class="absolute inset-0 w-full h-full bg-[#0d0e15]"></canvas>
+
+        <!-- Start/Intro Screen Overlay -->
+        <div id="startScreen" class="absolute inset-0 bg-slate-950/90 z-40 flex flex-col items-center justify-center px-4 transition-all duration-500">
+            <div class="max-w-md w-full text-center space-y-6 animate-pulse-slow">
+                <h1 class="orbitron text-5xl md:text-6xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 neon-shadow-pink">
+                    NEON DRIFT
+                </h1>
+                <p class="text-cyan-300 text-lg md:text-xl tracking-wider font-semibold">THE ULTIMATE RETRO SLIDE SIMULATOR</p>
+                
+                <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
+                    <h2 class="text-pink-400 font-bold text-lg border-b border-slate-800 pb-2"><i class="fa-solid fa-gamepad mr-2"></i>CONTROLS</h2>
+                    <div class="grid grid-cols-2 gap-3 text-sm text-slate-300">
+                        <div><span class="text-cyan-400 font-bold">W / ↑</span> Accelerate</div>
+                        <div><span class="text-cyan-400 font-bold">S / ↓</span> Brake / Reverse</div>
+                        <div><span class="text-cyan-400 font-bold">A/D / ←/→</span> Steer</div>
+                        <div><span class="text-pink-500 font-bold">SPACEBAR</span> Handbrake</div>
+                        <div class="col-span-2 text-center border-t border-slate-800/60 pt-2 mt-1">
+                            <span class="text-cyan-400 font-bold">[ E ]</span> Toggle Tuning & Track Sidebar
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2 text-center">Mobile users can use on-screen touch pedals & virtual wheel</p>
+                </div>
+
+                <button id="startBtn" class="orbitron w-full py-4 bg-gradient-to-r from-pink-500 to-cyan-500 hover:from-pink-600 hover:to-cyan-600 text-white font-bold text-xl rounded-xl shadow-lg shadow-pink-500/30 transition-all duration-300 transform hover:scale-105 active:scale-95 border border-pink-400">
+                    START SLIDING <i class="fa-solid fa-play ml-2"></i>
+                </button>
+                <p class="text-xs text-slate-500">Enable sound on your device for dynamic engine synthesizers & custom music beats!</p>
+            </div>
+        </div>
+
+        <!-- Heads-Up Display (HUD) -->
+        <div id="hud" class="absolute inset-x-0 top-0 p-4 flex justify-between items-start pointer-events-none z-10 select-none">
+            <!-- Drift Combo & Multiplier Display -->
+            <div class="flex flex-col space-y-1">
+                <div id="driftScoreContainer" class="opacity-0 transition-opacity duration-200 flex items-center space-x-3 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-xl border border-pink-500/30">
+                    <div class="flex flex-col">
+                        <span class="text-xs text-pink-400 font-bold uppercase tracking-wider">DRIFT POINT COMBO</span>
+                        <span id="driftPoints" class="orbitron text-3xl font-black text-white neon-shadow-pink">0</span>
+                    </div>
+                    <div class="h-10 w-px bg-pink-500/30"></div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-cyan-400 font-bold uppercase tracking-wider">MULT</span>
+                        <span id="driftMult" class="orbitron text-3xl font-black text-cyan-400 neon-shadow-cyan">1.0x</span>
+                    </div>
+                </div>
+                <!-- Drift Notification / Success Badge -->
+                <div id="driftBadge" class="opacity-0 scale-95 transition-all duration-300 text-sm font-bold bg-gradient-to-r from-pink-500/20 to-transparent border-l-4 border-pink-500 pl-3 py-1 text-pink-300">
+                    LINE DRIFT!
+                </div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <div class="flex flex-col items-end space-y-2 pointer-events-auto">
+                <!-- Score & High Score -->
+                <div class="bg-slate-900/80 backdrop-blur-md p-3 rounded-xl border border-slate-800 text-right min-w-[150px]">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Total Score</div>
+                    <div id="totalScore" class="orbitron text-2xl font-bold text-cyan-400">000,000</div>
+                    <div class="text-[9px] text-slate-500 uppercase tracking-widest font-bold mt-1">Personal Best</div>
+                    <div id="highScore" class="orbitron text-sm font-semibold text-slate-300">000,000</div>
+                </div>
+
+                <!-- Speedometer -->
+                <div id="speedoContainer" class="bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-800 flex items-center space-x-3 transition-transform duration-75">
+                    <div class="text-right">
+                        <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Speed</div>
+                        <div class="flex items-baseline justify-end">
+                            <span id="speedVal" class="orbitron text-2xl font-black text-white">0</span>
+                            <span class="text-xs text-slate-400 ml-1">MPH</span>
+                        </div>
+                    </div>
+                    <!-- Indicator LED -->
+                    <div id="speedIndicator" class="w-3 h-3 rounded-full bg-cyan-500 animate-pulse"></div>
+                </div>
+                
+                <!-- Tuner Sidebar Indicator Hint -->
+                <div class="text-[11px] text-cyan-400 bg-slate-950/80 px-2 py-1 rounded border border-slate-800 hidden md:block select-none">
+                    Press <span class="bg-cyan-500/20 px-1 rounded font-bold">E</span> for Tuner Panel
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Settings & Control Sidebar (Desktop/Laptop UI) -->
+        <div id="sidebar" class="absolute left-4 top-24 bottom-24 w-80 bg-slate-950/95 border border-slate-800 rounded-2xl p-5 flex flex-col space-y-3 shadow-2xl z-20 transition-all duration-300 transform -translate-x-96 opacity-0 pointer-events-none">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                <h3 class="orbitron text-md font-bold text-pink-500 tracking-wider">TUNING & TRACKS</h3>
+                <button id="toggleSidebar" class="text-slate-400 hover:text-white"><i class="fa-solid fa-times text-md"></i></button>
+            </div>
+
+            <!-- Track Selector -->
+            <div class="space-y-1">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Select Circuit</label>
+                <div class="grid grid-cols-1 gap-1">
+                    <button class="track-btn px-3 py-1.5 text-left rounded-lg text-xs font-bold border transition-all duration-200" data-track="hakone">
+                        <i class="fa-solid fa-mountain text-pink-400 mr-1.5"></i> Neon Hakone (Touge Pass)
+                    </button>
+                    <button class="track-btn px-3 py-1.5 text-left rounded-lg text-xs font-bold border transition-all duration-200" data-track="speedway">
+                        <i class="fa-solid fa-gauge-high text-cyan-400 mr-1.5"></i> Cyber Speedway (High Speed)
+                    </button>
+                    <button class="track-btn px-3 py-1.5 text-left rounded-lg text-xs font-bold border transition-all duration-200" data-track="downtown">
+                        <i class="fa-solid fa-city text-purple-400 mr-1.5"></i> Downtown Grid (Metropolis Night)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Synthesized Music Controls Widget -->
+            <div class="bg-slate-900/85 p-2.5 rounded-xl border border-pink-500/20 space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-pink-400 font-black tracking-wider uppercase"><i class="fa-solid fa-music mr-1"></i>Neon Retro Synthesizer</span>
+                    <!-- Miniature Playing Visualizer -->
+                    <div class="flex items-end space-x-[2px] h-3" id="musicVisualizer">
+                        <div class="w-[3px] bg-pink-500 h-1 rounded-sm"></div>
+                        <div class="w-[3px] bg-pink-400 h-2 rounded-sm"></div>
+                        <div class="w-[3px] bg-cyan-400 h-1.5 rounded-sm"></div>
+                    </div>
+                </div>
+                <!-- Song Name Display -->
+                <div class="bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <div id="songTitle" class="orbitron text-xs font-black text-cyan-300 truncate">PRESS START TO LOAD TUNES</div>
+                    <div id="songArtist" class="text-[9px] text-slate-500 uppercase font-semibold">Beat Engine v3.8</div>
+                </div>
+                <!-- Player Controls Row -->
+                <div class="flex items-center justify-between gap-1">
+                    <button id="btnPrevSong" class="text-xs bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-300 py-1 px-3 rounded-lg flex-1 transition-all"><i class="fa-solid fa-backward text-[10px]"></i></button>
+                    <button id="btnPlayPauseMusic" class="text-xs bg-gradient-to-r from-pink-500 to-cyan-500 text-white font-black py-1 px-4 rounded-lg flex-1 hover:brightness-110 transition-all"><i class="fa-solid fa-pause text-[10px]"></i></button>
+                    <button id="btnNextSong" class="text-xs bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/30 text-slate-300 py-1 px-3 rounded-lg flex-1 transition-all"><i class="fa-solid fa-forward text-[10px]"></i></button>
+                </div>
+                <!-- Music Volume Slider -->
+                <div class="flex items-center justify-between gap-2 text-[10px]">
+                    <span class="text-slate-500 font-bold uppercase">Volume</span>
+                    <input type="range" id="musicVolSlider" min="0" max="0.3" step="0.02" value="0.12" class="w-2/3 h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+            </div>
+
+            <!-- SFX & Sound Settings -->
+            <div class="space-y-1">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">SFX Settings</label>
+                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                    <label class="flex items-center justify-between bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800 cursor-pointer hover:border-cyan-500/30">
+                        <span class="text-slate-300 text-[11px]">Screech</span>
+                        <input type="checkbox" id="screechToggle" checked class="w-3.5 h-3.5 rounded accent-cyan-500 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800 cursor-pointer hover:border-cyan-500/30">
+                        <span class="text-slate-300 text-[11px]">Engine SFX</span>
+                        <input type="checkbox" id="engineSFXToggle" checked class="w-3.5 h-3.5 rounded accent-cyan-400 cursor-pointer">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Obstacle Settings & Clear Track -->
+            <div class="space-y-1">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Obstacle Settings</label>
+                <label class="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-800 cursor-pointer hover:border-pink-500/40 transition-all">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-slate-200">Clear Track (No Cones)</span>
+                        <span class="text-[9px] text-slate-500">Removes all cones & structures</span>
+                    </div>
+                    <input type="checkbox" id="clearTrackToggle" class="w-4 h-4 rounded accent-pink-500 cursor-pointer">
+                </label>
+            </div>
+
+            <!-- Car Customization Presets -->
+            <div class="space-y-1">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Car Physics Tuning</label>
+                <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <button class="preset-btn px-1 py-1 rounded-lg font-bold border text-center transition-all duration-200" data-preset="king">
+                        👑 Drift King
+                    </button>
+                    <button class="preset-btn px-1 py-1 rounded-lg font-bold border text-center transition-all duration-200" data-preset="street">
+                        🚗 Street Tuner
+                    </button>
+                    <button class="preset-btn px-1 py-1 rounded-lg font-bold border text-center transition-all duration-200" data-preset="grip">
+                        🏁 Super Grip
+                    </button>
+                    <button class="preset-btn px-1 py-1 rounded-lg font-bold border text-center transition-all duration-200" data-preset="ice">
+                        ❄️ Ice Slider
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Sliders -->
+            <div class="space-y-1.5 pt-1.5 border-t border-slate-900 flex-1 overflow-y-auto pr-1">
+                <div class="space-y-0.5">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-slate-400 font-semibold">Tire Lateral Slip (Grip)</span>
+                        <span id="gripVal" class="text-cyan-400 font-bold">0.05</span>
+                    </div>
+                    <input type="range" id="gripSlider" min="0.01" max="0.25" step="0.01" value="0.05" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+
+                <div class="space-y-0.5">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-slate-400 font-semibold">Engine Power (Accel)</span>
+                        <span id="powerVal" class="text-cyan-400 font-bold">0.15</span>
+                    </div>
+                    <input type="range" id="powerSlider" min="0.05" max="0.3" step="0.01" value="0.15" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+
+                <div class="space-y-0.5">
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-slate-400 font-semibold">Max Steering Angle</span>
+                        <span id="steerVal" class="text-cyan-400 font-bold">0.08</span>
+                    </div>
+                    <input type="range" id="steerSlider" min="0.04" max="0.12" step="0.01" value="0.08" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+
+                <!-- Custom Car Color -->
+                <div class="space-y-0.5">
+                    <span class="text-[11px] text-slate-400 font-semibold block">Car Neon Body Color</span>
+                    <div class="flex items-center space-x-2">
+                        <input type="color" id="carColor" value="#ff007f" class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer">
+                        <span class="text-xs text-slate-300">Paint your car</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="space-y-1.5 border-t border-slate-900 pt-1.5 text-[11px]">
+                <button id="resetTracks" class="w-full py-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 font-bold text-slate-300 rounded-lg transition-all duration-200">
+                    <i class="fa-solid fa-trash mr-1 text-pink-500"></i> Clear Tire Skid Marks
+                </button>
+                <div class="flex justify-between items-center text-slate-500 px-1">
+                    <span>Engine SFX Synth</span>
+                    <button id="soundToggle" class="text-emerald-400 hover:underline font-bold"><i class="fa-solid fa-volume-high mr-1"></i>Active</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Small Toggle Sidebar Button (Unified Gear icon) -->
+        <button id="mobileConfigBtn" class="absolute left-4 top-4 bg-slate-900/80 border border-slate-800 p-3 rounded-xl text-cyan-400 z-30 active:scale-90">
+            <i class="fa-solid fa-sliders text-xl"></i>
+        </button>
+
+        <!-- Touch Controls UI Overlay (Only visible on mobile/touch interfaces) -->
+        <div id="touchControls" class="absolute bottom-6 inset-x-6 flex justify-between items-end pointer-events-none z-30 opacity-0 md:hidden">
+            <!-- Left Side: Steering Controls -->
+            <div class="flex space-x-4 pointer-events-auto">
+                <button id="btnLeft" class="touch-btn w-16 h-16 rounded-2xl flex items-center justify-center text-white active:bg-cyan-500/30 active:border-cyan-400 transition-all select-none">
+                    <i class="fa-solid fa-caret-left text-3xl"></i>
+                </button>
+                <button id="btnRight" class="touch-btn w-16 h-16 rounded-2xl flex items-center justify-center text-white active:bg-cyan-500/30 active:border-cyan-400 transition-all select-none">
+                    <i class="fa-solid fa-caret-right text-3xl"></i>
+                </button>
+            </div>
+
+            <!-- Center-ish: Handbrake / Initiate Drift -->
+            <div class="pointer-events-auto flex justify-center flex-1 mx-2">
+                <button id="btnHandbrake" class="touch-btn w-20 h-16 rounded-2xl border-pink-500/30 flex flex-col items-center justify-center text-pink-400 active:bg-pink-500/40 active:border-pink-400 transition-all select-none">
+                    <span class="text-[10px] font-black tracking-widest leading-none mb-1">DRIFT</span>
+                    <i class="fa-solid fa-fire text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Right Side: Acceleration / Reverse -->
+            <div class="flex space-x-4 pointer-events-auto">
+                <button id="btnReverse" class="touch-btn w-16 h-16 rounded-2xl flex items-center justify-center text-slate-400 active:bg-red-500/30 active:border-red-400 transition-all select-none">
+                    <i class="fa-solid fa-caret-down text-3xl"></i>
+                </button>
+                <button id="btnForward" class="touch-btn w-20 h-20 rounded-2xl flex flex-col items-center justify-center text-emerald-400 active:bg-emerald-500/30 active:border-emerald-400 border-emerald-500/20 transition-all select-none">
+                    <span class="text-[10px] font-bold tracking-widest">DRIVE</span>
+                    <i class="fa-solid fa-gas-pump text-2xl mt-1"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Notification Banner -->
+        <div id="toast" class="absolute top-24 left-1/2 transform -translate-x-1/2 bg-slate-900 border border-emerald-500 px-6 py-2 rounded-xl text-emerald-400 font-bold opacity-0 transition-all duration-300 z-50 shadow-lg pointer-events-none text-sm">
+            Tuning loaded!
+        </div>
+    </div>
+
+    <!-- Script Block -->
+    <script>
+        // Setup sound variables
+        let audioCtx = null;
+        let engineOsc = null;
+        let engineGain = null;
+        let tireScreechNode = null;
+        let soundEnabled = true;
+
+        // Toggles for SFX
+        let sfxScreechEnabled = true;
+        let sfxEngineEnabled = true;
+
+        // Custom Beat Machine Procedural Synth Music engine variables
+        let musicSequencerActive = false;
+        let musicGainNode = null;
+        let delayNode = null;
+        let delayFeedback = null;
+        let sequencerIntervalId = null;
+        let currentSongIndex = 0;
+        let musicStep = 0;
+        let lastScheduledStepTime = 0;
+        let isMusicPlaying = true; // Enabled on start
+
+        const playlist = [
+            { title: "ASTRA RUNNER", genre: "Melodic Outrun Synthwave", bpm: 118 },
+            { title: "TOKYO OVERDRIVE", genre: "Aggressive Cyber Techno", bpm: 132 },
+            { title: "DREAM STATE", genre: "Spacey Chillwave Dream", bpm: 92 }
+        ];
+
+        // Sound init function
+        function initAudio() {
+            if (audioCtx) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Synth engine sound
+                engineOsc = audioCtx.createOscillator();
+                engineGain = audioCtx.createGain();
+                
+                engineOsc.type = 'sawtooth';
+                engineOsc.frequency.setValueAtTime(45, audioCtx.currentTime); // Low baseline hum
+                
+                // Lowpass filter to make it sound beefier
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(250, audioCtx.currentTime);
+                
+                engineOsc.connect(filter);
+                filter.connect(engineGain);
+                engineGain.connect(audioCtx.destination);
+                
+                engineGain.gain.setValueAtTime(0.02, audioCtx.currentTime); // Quiet baseline
+                engineOsc.start();
+
+                // Setup drift tire screech sound (noise-based synth)
+                const bufferSize = audioCtx.sampleRate * 2;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                noise.loop = true;
+
+                const screechFilter = audioCtx.createBiquadFilter();
+                screechFilter.type = 'bandpass';
+                screechFilter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                screechFilter.Q.setValueAtTime(3.0, audioCtx.currentTime);
+
+                tireScreechNode = audioCtx.createGain();
+                tireScreechNode.gain.setValueAtTime(0.0, audioCtx.currentTime);
+
+                noise.connect(screechFilter);
+                screechFilter.connect(tireScreechNode);
+                tireScreechNode.connect(audioCtx.destination);
+                noise.start();
+
+                // Create procedural music master gain node
+                musicGainNode = audioCtx.createGain();
+                const defaultVol = parseFloat(document.getElementById('musicVolSlider').value);
+                musicGainNode.gain.setValueAtTime(defaultVol, audioCtx.currentTime);
+                musicGainNode.connect(audioCtx.destination);
+
+                // Setup a spacey stereo-style Delay line for melody echoes
+                delayNode = audioCtx.createDelay(1.0);
+                delayNode.delayTime.setValueAtTime(0.24, audioCtx.currentTime);
+                delayFeedback = audioCtx.createGain();
+                delayFeedback.gain.setValueAtTime(0.38, audioCtx.currentTime);
+
+                delayNode.connect(delayFeedback);
+                delayFeedback.connect(delayNode); // feedback loop
+                delayNode.connect(musicGainNode); // send delayed signals to master
+
+                startBeatSequencer();
+
+            } catch (e) {
+                console.warn("Web Audio API not fully supported on this platform.", e);
+            }
+        }
+
+        // Procedural Beat Synthesizer Clock
+        function startBeatSequencer() {
+            if (sequencerIntervalId) clearInterval(sequencerIntervalId);
+            
+            musicStep = 0;
+            updateSongDisplay();
+            
+            const stepDuration = 60 / playlist[currentSongIndex].bpm / 4; // 16th notes
+            lastScheduledStepTime = audioCtx.currentTime;
+
+            sequencerIntervalId = setInterval(() => {
+                if (!isMusicPlaying || !soundEnabled) return;
+                
+                const currentTime = audioCtx.currentTime;
+                // Schedule notes slightly in advance to avoid browser jitter
+                while (lastScheduledStepTime < currentTime + 0.1) {
+                    playSequenceStep(musicStep, lastScheduledStepTime);
+                    lastScheduledStepTime += stepDuration;
+                    musicStep = (musicStep + 1) % 16;
+                }
+            }, 25);
+        }
+
+        // Procedural Drum Synthesizers & Lead Synths
+        function triggerKick(time) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(musicGainNode);
+
+            osc.frequency.setValueAtTime(170, time);
+            osc.frequency.exponentialRampToValueAtTime(45, time + 0.11);
+
+            gain.gain.setValueAtTime(1.0, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+
+            osc.start(time);
+            osc.stop(time + 0.16);
+        }
+
+        function triggerSnare(time) {
+            // Noise component
+            const noise = audioCtx.createBufferSource();
+            const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.18, audioCtx.sampleRate);
+            const noiseData = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < noiseBuffer.length; i++) {
+                noiseData[i] = Math.random() * 2 - 1;
+            }
+            noise.buffer = noiseBuffer;
+
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(1100, time);
+
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.6, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.16);
+
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(musicGainNode);
+
+            noise.start(time);
+            noise.stop(time + 0.17);
+
+            // Resonant core mid-tone
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(185, time);
+            gain.gain.setValueAtTime(0.4, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.09);
+
+            osc.connect(gain);
+            gain.connect(musicGainNode);
+            osc.start(time);
+            osc.stop(time + 0.11);
+        }
+
+        function triggerHat(time, open = false) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(10500, time);
+
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(8500, time);
+
+            const duration = open ? 0.18 : 0.045;
+            gain.gain.setValueAtTime(0.18, time);
+            gain.gain.exponentialRampToValueAtTime(0.004, time + duration);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(musicGainNode);
+
+            osc.start(time);
+            osc.stop(time + duration + 0.02);
+        }
+
+        // Bass Synth with detuned oscillators for thicker sound
+        function triggerBass(freq, time, duration = 0.2) {
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(freq, time);
+
+            osc2.type = 'sawtooth';
+            osc2.frequency.setValueAtTime(freq * 1.008, time); // detune slightly for thickness
+
+            // Deep analog-style lowpass sweep
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(350, time);
+            filter.frequency.exponentialRampToValueAtTime(130, time + duration);
+
+            gain.gain.setValueAtTime(0.45, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+
+            osc1.connect(filter);
+            osc2.connect(filter);
+            filter.connect(gain);
+            gain.connect(musicGainNode);
+
+            osc1.start(time);
+            osc2.start(time);
+            osc1.stop(time + duration + 0.05);
+            osc2.stop(time + duration + 0.05);
+        }
+
+        // Lush Polyphonic Chord Synth Pad
+        function triggerSynthPad(freqs, time, duration = 0.6) {
+            freqs.forEach(f => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(f, time);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(280, time);
+                filter.frequency.exponentialRampToValueAtTime(620, time + duration * 0.4);
+                filter.frequency.exponentialRampToValueAtTime(170, time + duration);
+
+                gain.gain.setValueAtTime(0.0, time);
+                gain.gain.linearRampToValueAtTime(0.05, time + 0.15); // Warm attack
+                gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(musicGainNode);
+
+                osc.start(time);
+                osc.stop(time + duration + 0.1);
+            });
+        }
+
+        // Melodic Lead Synthesizer routing into spacey delay lines
+        function triggerSynthNote(freq, time, duration = 0.15) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc.type = 'sawtooth'; // Thicker lead
+            osc.frequency.setValueAtTime(freq, time);
+
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2500, time);
+            filter.frequency.exponentialRampToValueAtTime(800, time + duration);
+
+            gain.gain.setValueAtTime(0.0, time);
+            gain.gain.linearRampToValueAtTime(0.12, time + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.005, time + duration);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            
+            // Connect to BOTH delay effects and master gain
+            gain.connect(musicGainNode);
+            gain.connect(delayNode);
+
+            osc.start(time);
+            osc.stop(time + duration + 0.05);
+        }
+
+        // Sequences for our newly designed high-fidelity songs
+        function playSequenceStep(step, time) {
+            animateVisualizer();
+
+            if (currentSongIndex === 0) {
+                // SONG 0: "ASTRA RUNNER" (Uplifting Outrun Synthwave)
+                // BPM: 118. Key: A minor / C major
+                
+                // Warm, rich chord sweeps
+                if (step === 0) {
+                    triggerSynthPad([220.0, 261.6, 329.6], time, 1.3); // Am
+                } else if (step === 4) {
+                    triggerSynthPad([174.6, 220.0, 261.6], time, 1.3); // Fmaj
+                } else if (step === 8) {
+                    triggerSynthPad([261.6, 329.6, 392.0], time, 1.3); // Cmaj
+                } else if (step === 12) {
+                    triggerSynthPad([196.0, 246.9, 293.7], time, 1.3); // Gmaj
+                }
+                
+                // Solid, driving kick & snare
+                if (step === 0 || step === 8) triggerKick(time);
+                if (step === 4 || step === 12) {
+                    triggerKick(time);
+                    if (Math.random() > 0.4) triggerHat(time, true);
+                }
+                if (step % 4 === 2) triggerHat(time);
+                if (step % 8 === 4) triggerSnare(time); // Driving outrun snare beat
+
+                // Detuned rolling synthwave bassline
+                const bassline = [110.0, 110.0, 110.0, 110.0, 87.3, 87.3, 87.3, 87.3, 130.8, 130.8, 130.8, 130.8, 98.0, 98.0, 98.0, 98.0];
+                if (step % 2 === 0) {
+                    triggerBass(bassline[step], time, 0.2);
+                }
+
+                // Echo-delayed solar flare lead arpeggio
+                const arpeggio = [440.0, 523.3, 659.3, 784.0, 880.0, 784.0, 659.3, 523.3];
+                if (step % 2 === 1) {
+                    triggerSynthNote(arpeggio[step % 8], time, 0.12);
+                }
+
+            } else if (currentSongIndex === 1) {
+                // SONG 1: "TOKYO OVERDRIVE" (Aggressive Cyber Techno)
+                // BPM: 132. Key: G minor
+                
+                // Aggressive industrial chord sweeps
+                if (step === 0) {
+                    triggerSynthPad([196.0, 233.1, 293.7], time, 1.0); // Gm
+                } else if (step === 6) {
+                    triggerSynthPad([155.6, 196.0, 233.1], time, 1.0); // D#
+                } else if (step === 12) {
+                    triggerSynthPad([174.6, 220.0, 261.6], time, 1.0); // F
+                }
+
+                // Heavy 4-on-the-floor beat
+                if (step % 2 === 0) triggerKick(time);
+                if (step % 4 === 1 || step % 4 === 3) triggerHat(time);
+                if (step % 8 === 4) triggerSnare(time);
+
+                // Heavy detuned growling saw bassline
+                const bassline = [98.0, 98.0, 98.0, 98.0, 77.8, 77.8, 77.8, 87.3, 87.3, 87.3, 87.3, 87.3, 98.0, 98.0, 116.5, 116.5];
+                triggerBass(bassline[step], time, 0.11);
+
+                // Sharp cyberpunk neon melodies
+                const leadThemes = [784.0, 880.0, 932.3, 880.0, 784.0, 587.3, 784.0, 1046.5];
+                if (step % 4 === 1 || step === 14) {
+                    triggerSynthNote(leadThemes[step % 8], time, 0.15);
+                }
+
+            } else if (currentSongIndex === 2) {
+                // SONG 2: "DREAM STATE" (Spacey Dreamwave Chill)
+                // BPM: 92. Key: D major / B minor
+                
+                // Smooth wide stereo pads
+                if (step === 0) {
+                    triggerSynthPad([146.8, 185.0, 220.0], time, 2.2); // Dmaj
+                } else if (step === 8) {
+                    triggerSynthPad([123.5, 146.8, 185.0], time, 2.2); // Bm
+                }
+
+                // Heavy hip-hop trap style slow groove
+                if (step === 0 || step === 10) triggerKick(time);
+                if (step === 4 || step === 12) triggerSnare(time);
+                if (step % 2 === 1 && Math.random() > 0.4) triggerHat(time);
+
+                // Slow atmospheric sub-bass swells
+                const subBass = [73.4, 73.4, 73.4, 73.4, 61.7, 61.7, 61.7, 61.7];
+                if (step % 4 === 0) {
+                    triggerBass(subBass[Math.floor(step / 2)], time, 0.45);
+                }
+
+                // Ethereal moody dreamwaves
+                const chillLead = [587.3, 659.3, 739.9, 880.0, 739.9, 659.3, 587.3, 440.0];
+                if (step === 2 || step === 6 || step === 10 || step === 14) {
+                    triggerSynthNote(chillLead[step % 8], time, 0.35);
+                }
+            }
+        }
+
+        // Mini bar visualizer animation trigger
+        function animateVisualizer() {
+            const viz = document.getElementById('musicVisualizer');
+            if (!viz) return;
+            const bars = viz.children;
+            for (let bar of bars) {
+                // Random height animation on beat step
+                const randHeight = Math.random() * 20 + 4;
+                bar.style.height = `${randHeight}px`;
+            }
+        }
+
+        function updateSongDisplay() {
+            const currentSong = playlist[currentSongIndex];
+            document.getElementById('songTitle').innerText = currentSong.title;
+            document.getElementById('songArtist').innerText = `${currentSong.genre} • ${currentSong.bpm} BPM`;
+        }
+
+        function updateEngineAudio(speed, throttle, isDrifting) {
+            if (!audioCtx || !soundEnabled) return;
+            
+            // Speed and throttle controls engine pitch
+            if (sfxEngineEnabled) {
+                const pitch = 40 + (Math.abs(speed) * 8) + (throttle ? 30 : 0);
+                engineOsc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.1);
+                
+                // Loudness changes on heavy load
+                const volume = 0.03 + (throttle ? 0.05 : 0.01) + (isDrifting ? 0.02 : 0);
+                engineGain.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.15);
+            } else {
+                // Fade engine sound completely
+                engineGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.1);
+            }
+
+            // Screech sound during heavy drifting
+            if (isDrifting && Math.abs(speed) > 2 && sfxScreechEnabled) {
+                tireScreechNode.gain.setTargetAtTime(0.12, audioCtx.currentTime, 0.08);
+            } else {
+                tireScreechNode.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.15);
+            }
+        }
+
+        // Detect mobile layout/touch support to show overlays
+        function detectTouch() {
+            const touchControls = document.getElementById('touchControls');
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                touchControls.classList.remove('opacity-0');
+            }
+        }
+        window.onload = detectTouch;
+
+        // Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const startBtn = document.getElementById('startBtn');
+
+        // Layout UI Hooks
+        const totalScoreEl = document.getElementById('totalScore');
+        const highScoreEl = document.getElementById('highScore');
+        const speedValEl = document.getElementById('speedVal');
+        const speedIndicator = document.getElementById('speedIndicator');
+        const speedoContainer = document.getElementById('speedoContainer');
+        const driftScoreContainer = document.getElementById('driftScoreContainer');
+        const driftPointsEl = document.getElementById('driftPoints');
+        const driftMultEl = document.getElementById('driftMult');
+        const driftBadge = document.getElementById('driftBadge');
+        
+        // Sidebar Control Hooks
+        const sidebar = document.getElementById('sidebar');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
+        const mobileConfigBtn = document.getElementById('mobileConfigBtn');
+        const resetTracksBtn = document.getElementById('resetTracks');
+        const soundToggle = document.getElementById('soundToggle');
+        const toast = document.getElementById('toast');
+        const clearTrackToggle = document.getElementById('clearTrackToggle');
+        const screechToggle = document.getElementById('screechToggle');
+        const engineSFXToggle = document.getElementById('engineSFXToggle');
+
+        // Music UI Hooks
+        const btnPrevSong = document.getElementById('btnPrevSong');
+        const btnPlayPauseMusic = document.getElementById('btnPlayPauseMusic');
+        const btnNextSong = document.getElementById('btnNextSong');
+        const musicVolSlider = document.getElementById('musicVolSlider');
+
+        // Physics sliders & values
+        const gripSlider = document.getElementById('gripSlider');
+        const powerSlider = document.getElementById('powerSlider');
+        const steerSlider = document.getElementById('steerSlider');
+        const gripVal = document.getElementById('gripVal');
+        const powerVal = document.getElementById('powerVal');
+        const steerVal = document.getElementById('steerVal');
+        const carColorInput = document.getElementById('carColor');
+
+        // Game Configuration
+        const MAP_WIDTH = 2500;
+        const MAP_HEIGHT = 2000;
+        let currentTrack = 'hakone'; // 'hakone', 'speedway', 'downtown'
+        let clearTrackMode = false; // When true, no obstacles/cones spawn
+        let keys = {};
+        let touchInputs = { left: false, right: false, forward: false, reverse: false, drift: false };
+
+        // Game State Variables
+        let totalScore = 0;
+        let savedHighScore = localStorage.getItem('neon_drift_highscore') || 0;
+        highScoreEl.innerText = Number(savedHighScore).toLocaleString();
+
+        let currentDriftPoints = 0;
+        let driftMultiplier = 1.0;
+        let driftTimeCounter = 0;
+        let isDriftingNow = false;
+        let offroadPenaltyActive = false;
+        let particles = [];
+        let coneObstacles = [];
+
+        // Dynamic Car Physics Setup
+        const car = {
+            x: 250,
+            y: 250,
+            angle: Math.PI / 4, // Align to starting hill direction
+            vx: 0,
+            vy: 0,
+            angularVelocity: 0,
+            steerAngle: 0,
+            
+            // Tunable Sliders
+            normalGrip: 0.05, // Lower means more drift
+            driftGrip: 0.012,  // Enhanced handbrake grip (lower coefficient for cleaner slide entry)
+            accel: 0.15,
+            steerLimit: 0.08,
+            
+            // Fixed Physics constants
+            drag: 0.985,
+            maxSpeed: 18,
+            handbrake: false,
+            wasHandbraked: false, // Tracks handbrake release state
+            color: '#ff007f',
+            width: 18,
+            length: 36
+        };
+
+        // Custom Presets
+        const presets = {
+            king: { normalGrip: 0.04, driftGrip: 0.012, accel: 0.16, steerLimit: 0.09 },
+            street: { normalGrip: 0.07, driftGrip: 0.018, accel: 0.15, steerLimit: 0.08 },
+            grip: { normalGrip: 0.15, driftGrip: 0.04, accel: 0.18, steerLimit: 0.06 },
+            ice: { normalGrip: 0.015, driftGrip: 0.005, accel: 0.12, steerLimit: 0.09 }
+        };
+
+        // Helper function to toggle Sidebar with unified state
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-96');
+            sidebar.classList.toggle('opacity-0');
+            sidebar.classList.toggle('pointer-events-none');
+        }
+
+        // Initialize Slider Interactions
+        function syncSliders() {
+            gripVal.innerText = car.normalGrip.toFixed(3);
+            gripSlider.value = car.normalGrip;
+            
+            powerVal.innerText = car.accel.toFixed(2);
+            powerSlider.value = car.accel;
+            
+            steerVal.innerText = car.steerLimit.toFixed(2);
+            steerSlider.value = car.steerLimit;
+        }
+
+        function triggerToast(message) {
+            toast.innerText = message;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 1500);
+        }
+
+        // Presets Event Listeners
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const presetKey = btn.dataset.preset;
+                const p = presets[presetKey];
+                if (p) {
+                    car.normalGrip = p.normalGrip;
+                    car.driftGrip = p.driftGrip;
+                    car.accel = p.accel;
+                    car.steerLimit = p.steerLimit;
+                    syncSliders();
+                    triggerToast(`Loaded: ${presetKey.toUpperCase()} preset`);
+                    updatePresetButtonStyles();
+                }
+            });
+        });
+
+        function updatePresetButtonStyles() {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                const presetKey = btn.dataset.preset;
+                const p = presets[presetKey];
+                const isActive = (Math.abs(car.normalGrip - p.normalGrip) < 0.005 && Math.abs(car.accel - p.accel) < 0.01);
+                if (isActive) {
+                    btn.className = "preset-btn px-2 py-2 rounded-lg font-bold border text-center transition-all duration-200 border-pink-500 bg-pink-500/20 text-pink-300";
+                } else {
+                    btn.className = "preset-btn px-2 py-2 rounded-lg font-bold border text-center transition-all duration-200 border-slate-800 bg-slate-900/40 text-slate-400 hover:text-white";
+                }
+            });
+        }
+
+        gripSlider.addEventListener('input', (e) => {
+            car.normalGrip = parseFloat(e.target.value);
+            car.driftGrip = car.normalGrip * 0.25; // Handbrake slip scales dynamically to baseline grip
+            gripVal.innerText = car.normalGrip.toFixed(3);
+            updatePresetButtonStyles();
+        });
+
+        powerSlider.addEventListener('input', (e) => {
+            car.accel = parseFloat(e.target.value);
+            powerVal.innerText = car.accel.toFixed(2);
+            updatePresetButtonStyles();
+        });
+
+        steerSlider.addEventListener('input', (e) => {
+            car.steerLimit = parseFloat(e.target.value);
+            steerVal.innerText = car.steerLimit.toFixed(2);
+            updatePresetButtonStyles();
+        });
+
+        carColorInput.addEventListener('input', (e) => {
+            car.color = e.target.value;
+        });
+
+        // Clear Track Toggle Interaction
+        clearTrackToggle.addEventListener('change', (e) => {
+            clearTrackMode = e.target.checked;
+            initializeTrack();
+            triggerToast(clearTrackMode ? "Cones Cleared! Happy Drifting!" : "Obstacles Spawned!");
+        });
+
+        // SFX Toggles
+        screechToggle.addEventListener('change', (e) => {
+            sfxScreechEnabled = e.target.checked;
+            triggerToast(sfxScreechEnabled ? "Drift screech enabled" : "Drift screech muted");
+        });
+
+        // Music Player Actions
+        btnPlayPauseMusic.addEventListener('click', () => {
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                btnPlayPauseMusic.innerHTML = '<i class="fa-solid fa-pause text-[10px]"></i>';
+                triggerToast("Resumed procedural tunes");
+            } else {
+                btnPlayPauseMusic.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
+                triggerToast("Paused music");
+            }
+        });
+
+        btnNextSong.addEventListener('click', () => {
+            currentSongIndex = (currentSongIndex + 1) % playlist.length;
+            startBeatSequencer();
+            triggerToast(`Track skipped to: ${playlist[currentSongIndex].title}`);
+        });
+
+        btnPrevSong.addEventListener('click', () => {
+            currentSongIndex = (currentSongIndex - 1 + playlist.length) % playlist.length;
+            startBeatSequencer();
+            triggerToast(`Track rewound to: ${playlist[currentSongIndex].title}`);
+        });
+
+        musicVolSlider.addEventListener('input', (e) => {
+            const vol = parseFloat(e.target.value);
+            if (musicGainNode) {
+                musicGainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            }
+        });
+
+        // Track Selector Actions
+        document.querySelectorAll('.track-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentTrack = btn.dataset.track;
+                initializeTrack();
+                triggerToast(`Switched Circuit to ${currentTrack.toUpperCase()}`);
+                updateTrackButtonStyles();
+            });
+        });
+
+        function updateTrackButtonStyles() {
+            document.querySelectorAll('.track-btn').forEach(btn => {
+                if (btn.dataset.track === currentTrack) {
+                    btn.classList.add('border-cyan-500', 'bg-cyan-500/10', 'text-cyan-300');
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                } else {
+                    btn.classList.remove('border-cyan-500', 'bg-cyan-500/10', 'text-cyan-300');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                }
+            });
+        }
+
+        // Reset persistent background elements (skid marks)
+        resetTracksBtn.addEventListener('click', () => {
+            bgCtx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+            drawRoadsToBackground();
+            triggerToast("Cleared track rubber!");
+        });
+
+        // Audio controls
+        soundToggle.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundToggle.innerHTML = '<i class="fa-solid fa-volume-high mr-1"></i>Active';
+                soundToggle.className = "text-emerald-400 hover:underline font-bold";
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } else {
+                soundToggle.innerHTML = '<i class="fa-solid fa-volume-xmark mr-1"></i>Muted';
+                soundToggle.className = "text-rose-400 hover:underline font-bold";
+                if (tireScreechNode) tireScreechNode.gain.setValueAtTime(0.0, audioCtx.currentTime);
+                if (engineGain) engineGain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+            }
+        });
+
+        // Resize Handles
+        function handleResize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Background logic canvas stays standard absolute scale size
+            if (bgCanvas.width !== MAP_WIDTH) {
+                bgCanvas.width = MAP_WIDTH;
+                bgCanvas.height = MAP_HEIGHT;
+                drawRoadsToBackground();
+            }
+        }
+        window.addEventListener('resize', handleResize);
+
+        // Sidebar interactions
+        mobileConfigBtn.addEventListener('click', toggleSidebar);
+        toggleSidebarBtn.addEventListener('click', toggleSidebar);
+
+        // Setup Keyboard Observers
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                keys['space'] = true;
+            }
+            // Trigger Sidebar toggle when pressing 'e' key
+            if (e.key.toLowerCase() === 'e') {
+                toggleSidebar();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            if (e.key === ' ' || e.code === 'Space') {
+                keys['space'] = false;
+            }
+        });
+
+        // Setup Touch Elements Observers
+        function bindTouch(btnId, property) {
+            const btn = document.getElementById(btnId);
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchInputs[property] = true;
+                initAudio(); // Audio needs direct user touch trigger on browsers
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchInputs[property] = false;
+            });
+        }
+        bindTouch('btnLeft', 'left');
+        bindTouch('btnRight', 'right');
+        bindTouch('btnForward', 'forward');
+        bindTouch('btnReverse', 'reverse');
+        bindTouch('btnHandbrake', 'drift');
+
+        // Play Sound on Start Touch
+        startBtn.addEventListener('click', () => {
+            initAudio();
+            startScreen.classList.add('opacity-0', 'pointer-events-none');
+        });
+
+        // Track Designs Built via Coordinate Paths & Shapes
+        function initializeTrack() {
+            coneObstacles = [];
+            particles = [];
+
+            if (currentTrack === 'hakone') {
+                // Spawn safely at the beginning of the winding pass
+                car.x = 250;
+                car.y = 250;
+                car.angle = Math.PI / 4;
+                car.vx = 0;
+                car.vy = 0;
+
+                if (!clearTrackMode) {
+                    // Hakone Mountain Path centerline coordinates
+                    const pathPoints = [
+                        {x: 250, y: 250}, {x: 800, y: 400}, {x: 1400, y: 200}, {x: 2200, y: 600},
+                        {x: 2000, y: 1200}, {x: 1200, y: 1000}, {x: 1400, y: 1700}, {x: 400, y: 1600}
+                    ];
+
+                    const roadWidth = 260;
+                    const boundaryOffset = (roadWidth / 2) + 12; // Sits just outside active road asphalt
+
+                    for (let i = 0; i < pathPoints.length - 1; i++) {
+                        const p1 = pathPoints[i];
+                        const p2 = pathPoints[i + 1];
+
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const len = Math.hypot(dx, dy);
+
+                        const nx = -dy / len;
+                        const ny = dx / len;
+
+                        const steps = Math.floor(len / 120);
+                        for (let s = 1; s < steps; s++) {
+                            const t = s / steps;
+                            const cx = p1.x + dx * t;
+                            const cy = p1.y + dy * t;
+
+                            // Left guardrail boundary cones (Pink sakura nodes)
+                            coneObstacles.push({
+                                x: cx + nx * boundaryOffset,
+                                y: cy + ny * boundaryOffset,
+                                color: '#ec4899'
+                            });
+
+                            // Right guardrail boundary cones (Cyan sakura nodes)
+                            coneObstacles.push({
+                                x: cx - nx * boundaryOffset,
+                                y: cy - ny * boundaryOffset,
+                                color: '#06b6d4'
+                            });
+                        }
+                    }
+                }
+            } else if (currentTrack === 'speedway') {
+                // Spawn straight on the bottom straightaway lane
+                car.x = MAP_WIDTH / 2;
+                car.y = MAP_HEIGHT / 2 + 550;
+                car.angle = 0;
+                car.vx = 0;
+                car.vy = 0;
+                
+                if (!clearTrackMode) {
+                    // Outer border cones - aligned at 1050x750
+                    for (let i = 0; i < 360; i += 12) {
+                        let rad = i * Math.PI / 180;
+                        coneObstacles.push({ 
+                            x: MAP_WIDTH / 2 + Math.cos(rad) * 1050, 
+                            y: MAP_HEIGHT / 2 + Math.sin(rad) * 750, 
+                            color: '#fca5a5' 
+                        });
+                        // Inner track cones - aligned at 550x350
+                        coneObstacles.push({ 
+                            x: MAP_WIDTH / 2 + Math.cos(rad) * 550, 
+                            y: MAP_HEIGHT / 2 + Math.sin(rad) * 350, 
+                            color: '#fb923c' 
+                        });
+                    }
+                }
+            } else if (currentTrack === 'downtown') {
+                // Spawn safely at downtown starting block segment
+                car.x = 250;
+                car.y = 250;
+                car.angle = 0;
+                car.vx = 0;
+                car.vy = 0;
+
+                if (!clearTrackMode) {
+                    // Decorative safety cones placed cleanly on outer corner lanes
+                    const cityHazardCones = [
+                        {x: 1200, y: 120, color: '#fb923c'},
+                        {x: 1200, y: 380, color: '#fca5a5'},
+                        {x: 1070, y: 900, color: '#fb923c'},
+                        {x: 1330, y: 900, color: '#fca5a5'},
+                        {x: 2120, y: 770, color: '#fb923c'},
+                        {x: 2380, y: 1030, color: '#fca5a5'}
+                    ];
+                    coneObstacles.push(...cityHazardCones);
+
+                    // Giant glowing central pylon/monument
+                    coneObstacles.push({ x: 1200, y: 900, isPillar: true, radius: 60, color: '#a855f7' });
+                }
+            }
+
+            drawRoadsToBackground();
+        }
+
+        // Draw structural layout onto checkable system canvas
+        function drawRoadsToBackground() {
+            bgCtx.fillStyle = "#0c0d14";
+            bgCtx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+            bgCtx.lineCap = "round";
+            bgCtx.lineJoin = "round";
+
+            if (currentTrack === 'hakone') {
+                // Draw wide winding mountain asphalt pass road
+                bgCtx.strokeStyle = '#151722';
+                bgCtx.lineWidth = 260;
+                bgCtx.beginPath();
+                bgCtx.moveTo(250, 250);
+                bgCtx.lineTo(800, 400);
+                bgCtx.lineTo(1400, 200);
+                bgCtx.lineTo(2200, 600);
+                bgCtx.lineTo(2000, 1200);
+                bgCtx.lineTo(1200, 1000);
+                bgCtx.lineTo(1400, 1700);
+                bgCtx.lineTo(400, 1600);
+                bgCtx.closePath();
+                bgCtx.stroke();
+
+                // Middle lane striping (Dashed neon lines)
+                bgCtx.strokeStyle = 'rgba(236, 72, 153, 0.18)';
+                bgCtx.lineWidth = 6;
+                bgCtx.setLineDash([20, 30]);
+                bgCtx.stroke();
+                bgCtx.setLineDash([]);
+            } else if (currentTrack === 'speedway') {
+                // Outer Track Ring Asphalt (Ellipse)
+                bgCtx.beginPath();
+                bgCtx.ellipse(MAP_WIDTH / 2, MAP_HEIGHT / 2, 1000, 700, 0, 0, Math.PI * 2);
+                bgCtx.fillStyle = '#161824'; 
+                bgCtx.fill();
+
+                // Inner Meadow Grass area (Ellipse Void)
+                bgCtx.beginPath();
+                bgCtx.ellipse(MAP_WIDTH / 2, MAP_HEIGHT / 2, 600, 400, 0, 0, Math.PI * 2);
+                bgCtx.fillStyle = '#0c0d14'; 
+                bgCtx.fill();
+
+                // Speed Booster grid arrows painted right on asphalt straightaway
+                bgCtx.strokeStyle = 'rgba(6, 182, 212, 0.08)';
+                bgCtx.lineWidth = 20;
+                bgCtx.beginPath();
+                bgCtx.moveTo(MAP_WIDTH / 2 - 300, MAP_HEIGHT / 2 + 550);
+                bgCtx.lineTo(MAP_WIDTH / 2 + 300, MAP_HEIGHT / 2 + 550);
+                bgCtx.stroke();
+
+                // Decorative lane markings (Ellipse)
+                bgCtx.strokeStyle = 'rgba(6, 182, 212, 0.18)';
+                bgCtx.lineWidth = 15;
+                bgCtx.setLineDash([40, 45]);
+                bgCtx.beginPath();
+                bgCtx.ellipse(MAP_WIDTH / 2, MAP_HEIGHT / 2, 800, 550, 0, 0, Math.PI * 2);
+                bgCtx.stroke();
+                bgCtx.setLineDash([]);
+            } else if (currentTrack === 'downtown') {
+                // Winding metropolis night street corridors
+                bgCtx.strokeStyle = '#161824';
+                bgCtx.lineWidth = 260;
+                bgCtx.beginPath();
+                bgCtx.moveTo(250, 250);
+                bgCtx.lineTo(1200, 250);
+                bgCtx.lineTo(1200, 1750);
+                bgCtx.lineTo(2250, 1750);
+                bgCtx.lineTo(2250, 900);
+                bgCtx.lineTo(1200, 900);
+                bgCtx.stroke();
+
+                // Circular asphalt extension roundabout
+                bgCtx.beginPath();
+                bgCtx.arc(1200, 900, 280, 0, Math.PI*2);
+                bgCtx.fill();
+
+                // Roundabout concrete inner greenbelt
+                bgCtx.beginPath();
+                bgCtx.arc(1200, 900, 130, 0, Math.PI*2);
+                bgCtx.fillStyle = '#0c0d14';
+                bgCtx.fill();
+
+                // Neon center lane dash lines
+                bgCtx.strokeStyle = 'rgba(168, 85, 247, 0.2)';
+                bgCtx.lineWidth = 6;
+                bgCtx.setLineDash([30, 40]);
+                bgCtx.beginPath();
+                bgCtx.moveTo(250, 250);
+                bgCtx.lineTo(1200, 250);
+                bgCtx.lineTo(1200, 1750);
+                bgCtx.lineTo(2250, 1750);
+                bgCtx.lineTo(2250, 900);
+                bgCtx.lineTo(1200, 900);
+                bgCtx.stroke();
+                bgCtx.setLineDash([]);
+            }
+        }
+
+        // Particle generator for drift smoke
+        class SmokeParticle {
+            constructor(x, y, speed, angle, isHandbraking = false) {
+                this.x = x;
+                this.y = y;
+                // Subtle random velocity drift
+                const driftFactor = isHandbraking ? 0.9 : 0.5;
+                this.vx = (Math.random() - 0.5) * driftFactor - Math.cos(angle) * (speed * 0.15);
+                this.vy = (Math.random() - 0.5) * driftFactor - Math.sin(angle) * (speed * 0.15);
+                this.radius = isHandbraking ? Math.random() * 8 + 6 : Math.random() * 6 + 4;
+                this.maxLife = isHandbraking ? Math.random() * 40 + 25 : Math.random() * 30 + 20;
+                this.life = this.maxLife;
+                // Handbraking gets beautiful rich magenta highlights, standard slide gets cyan/pink
+                if (isHandbraking) {
+                    this.color = Math.random() > 0.3 ? 'rgba(236, 72, 153, ' : 'rgba(168, 85, 247, ';
+                } else {
+                    this.color = Math.random() > 0.4 ? 'rgba(6, 182, 212, ' : 'rgba(236, 72, 153, ';
+                }
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+                this.radius += 0.4; // Expansion of tire smoke puff
+            }
+
+            draw(targetCtx) {
+                const alpha = Math.max(0, this.life / this.maxLife) * 0.5;
+                targetCtx.beginPath();
+                targetCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                targetCtx.fillStyle = this.color + alpha + ')';
+                targetCtx.fill();
+            }
+        }
+
+        // Dynamic checks to find if car is positioned on valid asphalt road coordinates
+        function checkOnRoad(x, y) {
+            // To check, we sample the pixel data of our offline background checkable canvas!
+            if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
+            try {
+                const pixel = bgCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+                // If it is our asphalt hex color (#161824 or close background gray), we are on road!
+                // Red/green/blue channels will be higher than the base dark terrain color #0c0d14
+                return (pixel[0] > 15 || pixel[1] > 20 || pixel[2] > 28);
+            } catch (e) {
+                return true; // Fallback
+            }
+        }
+
+        // Main game physics loop
+        function updatePhysics() {
+            // 1. Gather Direction Controls
+            let inputForward = keys['w'] || keys['arrowup'] || touchInputs.forward;
+            let inputReverse = keys['s'] || keys['arrowdown'] || touchInputs.reverse;
+            let inputLeft = keys['a'] || keys['arrowleft'] || touchInputs.left;
+            let inputRight = keys['d'] || keys['arrowright'] || touchInputs.right;
+            car.handbrake = keys['space'] || touchInputs.drift;
+
+            // 2. Handbrake Mechanics (Clutch Kick Boost on release!)
+            if (car.handbrake) {
+                car.wasHandbraked = true;
+            } else if (car.wasHandbraked) {
+                // Trigger quick "clutch kick" velocity kickback on release if we are trying to accelerate
+                if (inputForward) {
+                    const forwardDirX = Math.cos(car.angle);
+                    const forwardDirY = Math.sin(car.angle);
+                    car.vx += forwardDirX * (car.accel * 12.0);
+                    car.vy += forwardDirY * (car.accel * 12.0);
+                    triggerToast("⚡ CLUTCH KICK BOOST!");
+                    showDriftBadge("⚡ CLUTCH KICK!");
+                }
+                car.wasHandbraked = false;
+            }
+
+            // 3. Compute Steer Angle with progressive turn limits and handbrake assist
+            const turnFactor = 0.008;
+            // Increased steering lock authority while sliding or handbraking to catch extreme angles
+            const steeringLockAssist = car.handbrake ? 1.4 : (isDriftingNow ? 1.2 : 1.0);
+            const activeSteerLimit = car.steerLimit * steeringLockAssist;
+
+            if (inputLeft) {
+                car.steerAngle = Math.max(-activeSteerLimit, car.steerAngle - turnFactor);
+            } else if (inputRight) {
+                car.steerAngle = Math.min(activeSteerLimit, car.steerAngle + turnFactor);
+            } else {
+                car.steerAngle *= 0.65; // Quick return steering snap back to center
+            }
+
+            // Apply steering dynamically based on motion
+            const speed = Math.hypot(car.vx, car.vy);
+            
+            // Only steer if the car is actually moving
+            if (speed > 0.15) {
+                const steerDirection = car.vx * Math.cos(car.angle) + car.vy * Math.sin(car.angle) >= 0 ? 1 : -1;
+                car.angle += car.steerAngle * (speed / car.maxSpeed) * 1.5 * steerDirection;
+            }
+
+            // 4. Engine Force Calculations
+            let force = 0;
+            if (inputForward) force += car.accel;
+            if (inputReverse) force -= car.accel * 0.55; // Slower reverse rates
+
+            // Add standard fluid dampening friction
+            car.vx *= car.drag;
+            car.vy *= car.drag;
+
+            // Apply forward propulsion
+            car.vx += Math.cos(car.angle) * force;
+            car.vy += Math.sin(car.angle) * force;
+
+            // 5. Drift Slip Angle Mathematics
+            // Break velocity into forward and lateral component vectors
+            const lateralX = -Math.sin(car.angle);
+            const lateralY = Math.cos(car.angle);
+            const lateralVelocity = car.vx * lateralX + car.vy * lateralY;
+
+            // Choose tire coefficient based on Handbrake trigger
+            let activeGrip = car.normalGrip;
+            if (car.handbrake) {
+                activeGrip = car.driftGrip;
+            }
+
+            // Check if tire grip threshold has been broken due to sideways forces
+            const slipSpeedRatio = Math.abs(lateralVelocity);
+            const slideThreshold = 2.4;
+            isDriftingNow = slipSpeedRatio > slideThreshold || (car.handbrake && speed > 2.0);
+
+            if (isDriftingNow && !car.handbrake) {
+                // If sliding aggressively without handbrake, tires still slip
+                activeGrip = car.normalGrip * 0.45;
+            }
+
+            // Pull sideways velocity down relative to drift grips
+            car.vx -= lateralX * lateralVelocity * activeGrip;
+            car.vy -= lateralY * lateralVelocity * activeGrip;
+
+            // 6. Ground Surfaces Checks (Track boundaries check)
+            const checkFidelityPoints = [
+                {x: car.x, y: car.y}, // Center
+                {x: car.x + Math.cos(car.angle) * (car.length / 2), y: car.y + Math.sin(car.angle) * (car.length / 2)}, // Front nose
+                {x: car.x - Math.cos(car.angle) * (car.length / 2), y: car.y - Math.sin(car.angle) * (car.length / 2)}  // Rear tires
+            ];
+
+            let cornersOffroad = 0;
+            checkFidelityPoints.forEach(pt => {
+                if (!checkOnRoad(pt.x, pt.y)) {
+                    cornersOffroad++;
+                }
+            });
+
+            if (cornersOffroad > 1) {
+                // Slower off-road limits with high bumpy wheel friction
+                car.vx *= 0.90;
+                car.vy *= 0.90;
+                offroadPenaltyActive = true;
+            } else {
+                offroadPenaltyActive = false;
+            }
+
+            // 7. Update Position coordinates
+            car.x += car.vx;
+            car.y += car.vy;
+
+            // Map Bounds Guardrails
+            if (car.x < 100) { car.x = 100; car.vx *= -0.4; }
+            if (car.x > MAP_WIDTH - 100) { car.x = MAP_WIDTH - 100; car.vx *= -0.4; }
+            if (car.y < 100) { car.y = 100; car.vy *= -0.4; }
+            if (car.y > MAP_HEIGHT - 100) { car.y = MAP_HEIGHT - 100; car.vy *= -0.4; }
+
+            // 8. Render Skid Marks onto persistent canvas background directly
+            if (isDriftingNow && speed > 1.8) {
+                // Trace line paths representing tire tracks
+                // We draw left and right rear wheel trails
+                const rearDist = car.length * 0.4;
+                const trackWidth = car.width * 0.75;
+                
+                // Rear Left Wheel Coordinate
+                const rlx = car.x - Math.cos(car.angle) * rearDist + Math.sin(car.angle) * trackWidth;
+                const rly = car.y - Math.sin(car.angle) * rearDist - Math.cos(car.angle) * trackWidth;
+                
+                // Rear Right Wheel Coordinate
+                const rrx = car.x - Math.cos(car.angle) * rearDist - Math.sin(car.angle) * trackWidth;
+                const rry = car.y - Math.sin(car.angle) * rearDist + Math.cos(car.angle) * trackWidth;
+
+                // Sketch tire lines onto Background Persistent Canvas
+                // Handbraking draws high-visibility neon traces instead of standard black rubber
+                bgCtx.fillStyle = car.handbrake ? 'rgba(236, 72, 153, 0.7)' : 'rgba(0, 0, 0, 0.55)';
+                
+                bgCtx.beginPath();
+                bgCtx.arc(rlx, rly, car.handbrake ? 4 : 3, 0, Math.PI * 2);
+                bgCtx.arc(rrx, rry, car.handbrake ? 4 : 3, 0, Math.PI * 2);
+                bgCtx.fill();
+
+                // Generate Smoke Particles dynamically
+                if (Math.random() > 0.15) {
+                    particles.push(new SmokeParticle(rlx, rly, speed, car.angle, car.handbrake));
+                    particles.push(new SmokeParticle(rrx, rry, speed, car.angle, car.handbrake));
+                }
+            }
+
+            // 9. Obstacle & Cone Collisions
+            coneObstacles.forEach(cone => {
+                const dist = Math.hypot(car.x - cone.x, car.y - cone.y);
+                const collisionRadius = cone.isPillar ? cone.radius + 14 : 16;
+                
+                if (dist < collisionRadius) {
+                    // Quick bounce calculations
+                    const angleToCone = Math.atan2(car.y - cone.y, car.x - cone.x);
+                    car.vx = Math.cos(angleToCone) * 4.5;
+                    car.vy = Math.sin(angleToCone) * 4.5;
+                    
+                    // Break drift point accumulator instantly!
+                    if (currentDriftPoints > 0) {
+                        triggerScoreBreak();
+                    }
+                    
+                    // Scatter micro bits as spark particles
+                    for (let p = 0; p < 8; p++) {
+                        particles.push({
+                            x: cone.x,
+                            y: cone.y,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: (Math.random() - 0.5) * 6,
+                            radius: Math.random() * 3 + 2,
+                            life: 15,
+                            maxLife: 15,
+                            color: 'rgba(239, 68, 68, ',
+                            update() { this.x += this.vx; this.y += this.vy; this.life--; this.radius *= 0.95; },
+                            draw(targetCtx) {
+                                targetCtx.beginPath();
+                                targetCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                                targetCtx.fillStyle = this.color + (this.life / this.maxLife) + ')';
+                                targetCtx.fill();
+                            }
+                        });
+                    }
+                }
+            });
+
+            // 10. Process Drift Point Metrics
+            if (isDriftingNow && speed > 2.2 && !offroadPenaltyActive) {
+                // Base increment based on lateral velocity magnitude
+                let driftTickPoints = Math.floor(Math.abs(lateralVelocity) * 3);
+                // Handbraking grants a slight point boost multiplier
+                if (car.handbrake) driftTickPoints = Math.floor(driftTickPoints * 1.3);
+                currentDriftPoints += driftTickPoints;
+                
+                // Drift Multiplier accrual
+                driftTimeCounter += 1;
+                if (driftTimeCounter % 60 === 0) { // Every second-ish of smooth slide
+                    driftMultiplier = Math.min(5.0, driftMultiplier + 0.5);
+                    showDriftBadge(`MULTIPLIER UP: ${driftMultiplier.toFixed(1)}x!`);
+                }
+
+                // Update UI display
+                driftScoreContainer.classList.remove('opacity-0');
+                driftPointsEl.innerText = Math.floor(currentDriftPoints).toLocaleString();
+                driftMultEl.innerText = `${driftMultiplier.toFixed(1)}x`;
+            } else {
+                // Decay accumulator if they stop sliding
+                if (currentDriftPoints > 0) {
+                    bankDriftPoints();
+                }
+            }
+
+            // Sync dynamic synthesizer sound parameters
+            updateEngineAudio(speed, inputForward, isDriftingNow);
+
+            // Speedometer update
+            const mph = Math.floor(speed * 6.5);
+            speedValEl.innerText = mph;
+
+            if (mph > 140) {
+                // Dynamic High-Speed warp effect shakes the dial
+                const shake = (Math.random() - 0.5) * 4;
+                speedoContainer.style.transform = `translate(${shake}px, ${shake}px)`;
+                speedIndicator.className = "w-3 h-3 rounded-full bg-pink-500 neon-shadow-pink animate-ping";
+            } else {
+                speedoContainer.style.transform = "translate(0px, 0px)";
+                speedIndicator.className = "w-3 h-3 rounded-full bg-cyan-500 neon-shadow-cyan animate-pulse";
+            }
+        }
+
+        // Notification Badges for drifting actions
+        function showDriftBadge(text) {
+            driftBadge.innerText = text;
+            driftBadge.classList.remove('opacity-0', 'scale-95');
+            driftBadge.classList.add('opacity-100', 'scale-100');
+            setTimeout(() => {
+                driftBadge.classList.add('opacity-0', 'scale-95');
+            }, 1200);
+        }
+
+        // Clean score banks upon successfully straightening out car
+        function bankDriftPoints() {
+            const addedPoints = Math.floor(currentDriftPoints * driftMultiplier);
+            totalScore += addedPoints;
+            totalScoreEl.innerText = totalScore.toLocaleString();
+
+            // Check and update local storage highscores
+            if (totalScore > savedHighScore) {
+                savedHighScore = totalScore;
+                localStorage.setItem('neon_drift_highscore', savedHighScore);
+                highScoreEl.innerText = savedHighScore.toLocaleString();
+            }
+
+            showDriftBadge(`+${addedPoints.toLocaleString()} PTS BANKED!`);
+
+            // Flush loop elements
+            currentDriftPoints = 0;
+            driftMultiplier = 1.0;
+            driftTimeCounter = 0;
+            driftScoreContainer.classList.add('opacity-0');
+        }
+
+        function triggerScoreBreak() {
+            showDriftBadge("CRASHED! POINTS LOST!");
+            currentDriftPoints = 0;
+            driftMultiplier = 1.0;
+            driftTimeCounter = 0;
+            driftScoreContainer.classList.add('opacity-0');
+        }
+
+        // Game Render Engine
+        function render() {
+            // Draw relative viewport cameras (camera locks centered smoothly onto the car)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const camX = car.x - canvas.width / 2;
+            const camY = car.y - canvas.height / 2;
+
+            ctx.save();
+            // Translate scene to center on the car position
+            ctx.translate(-camX, -camY);
+
+            // 1. Draw compiled background structures (Skids, Asphalt layers)
+            ctx.drawImage(bgCanvas, 0, 0);
+
+            // 2. Render Obstacles (Cones / Pillars)
+            coneObstacles.forEach(cone => {
+                if (cone.isPillar) {
+                    // Tall Cyber pillar
+                    const grad = ctx.createRadialGradient(cone.x, cone.y, 2, cone.x, cone.y, cone.radius);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.3, cone.color);
+                    grad.addColorStop(1, '#0e0f17');
+                    
+                    ctx.beginPath();
+                    ctx.arc(cone.x, cone.y, cone.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = grad;
+                    ctx.fill();
+
+                    // Outer neon border ring
+                    ctx.strokeStyle = cone.color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(cone.x, cone.y, cone.radius + 3, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else {
+                    // Simple retro road orange hazard cone
+                    ctx.fillStyle = cone.color || '#fb923c';
+                    ctx.beginPath();
+                    ctx.arc(cone.x, cone.y, 9, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Inner highlight
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(cone.x, cone.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // 3. Process & Draw Active Smoke Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                p.draw(ctx);
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 4. Render the customizable Car Vector Mesh Sprite
+            ctx.save();
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.angle);
+
+            // Rear engine trail light flares (bright red/orange glowing)
+            const isMoving = Math.hypot(car.vx, car.vy) > 0.5;
+            if (isMoving) {
+                const flareSize = Math.random() * 8 + 4;
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.7)';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 10;
+                // Tail lights
+                ctx.fillRect(-car.length / 2 - 3, -car.width / 2 + 2, 4, 3);
+                ctx.fillRect(-car.length / 2 - 3, car.width / 2 - 5, 4, 3);
+                ctx.shadowBlur = 0;
+            }
+
+            // Outer Neon Undercar Glow
+            ctx.shadowColor = car.color;
+            ctx.shadowBlur = car.handbrake ? 25 : 15; // Extra bright underglow when handbraking
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)'; // Dark body shell
+            ctx.strokeStyle = car.color;
+            ctx.lineWidth = 3;
+
+            // Chassis main capsule block
+            ctx.beginPath();
+            ctx.roundRect(-car.length / 2, -car.width / 2, car.length, car.width, [6]);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Turn shadow off for inner details
+
+            // Windshield / Glass Cockpit
+            ctx.fillStyle = '#06b6d4';
+            ctx.beginPath();
+            ctx.roundRect(-car.length * 0.1, -car.width * 0.35, car.length * 0.38, car.width * 0.7, [2]);
+            ctx.fill();
+
+            // Rear spoiler wing winglet
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-car.length / 2 - 2, -car.width / 2 - 2, 4, car.width + 4);
+            ctx.fillStyle = car.color;
+            ctx.fillRect(-car.length / 2 - 1, -car.width / 2 - 2, 2, 3);
+            ctx.fillRect(-car.length / 2 - 1, car.width / 2 - 1, 2, 3);
+
+            // Active front steering tires visualization
+            ctx.fillStyle = '#000000';
+            const wheelLength = 10;
+            const wheelWidth = 4;
+            const frontWheelOffset = car.length * 0.28;
+            const sideWheelOffset = car.width * 0.55;
+
+            // Front Left Wheel (rotates based on steering input!)
+            ctx.save();
+            ctx.translate(frontWheelOffset, -sideWheelOffset);
+            ctx.rotate(car.steerAngle * 2.5); // Amplify visual turn feedback angle
+            ctx.fillRect(-wheelLength / 2, -wheelWidth / 2, wheelLength, wheelWidth);
+            ctx.restore();
+
+            // Front Right Wheel (rotates based on steering input!)
+            ctx.save();
+            ctx.translate(frontWheelOffset, sideWheelOffset);
+            ctx.rotate(car.steerAngle * 2.5);
+            ctx.fillRect(-wheelLength / 2, -wheelWidth / 2, wheelLength, wheelWidth);
+            ctx.restore();
+
+            // Rear fixed tires
+            ctx.fillRect(-car.length * 0.3, -sideWheelOffset, wheelLength, wheelWidth);
+            ctx.fillRect(-car.length * 0.3, sideWheelOffset, wheelLength, wheelWidth);
+
+            ctx.restore(); // Restore car rotations
+            ctx.restore(); // Restore camera translates
+        }
+
+        // Complete engine core loop
+        function gameLoop() {
+            updatePhysics();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize and trigger run sequence
+        function initGame() {
+            handleResize();
+            initializeTrack();
+            syncSliders();
+            updateTrackButtonStyles();
+            updatePresetButtonStyles();
+            requestAnimationFrame(gameLoop);
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
+
